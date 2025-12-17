@@ -1,0 +1,60 @@
+# StructuresFinder Configuration
+
+# Map display settings
+# Available placeholders:
+#   %world% - The translated world name (uses world-names mapping below)
+#   %world_raw% - The original world name
+#   %type% - The translated structure type (uses structure-types mapping below)
+#   %type_raw% - The structure type (raw, e.g. "UNDERGROUND_DEEP")
+#   %type_formatted% - The structure type formatted in English (e.g. "Underground Deep")
+#   %scale% - The map scale level (e.g. "normal")
+#   %schematic% - The schematic file name
+#   %x% - X coordinate
+#   %y% - Y coordinate
+#   %z% - Z coordinate
+#   %coords% - Formatted coordinates (e.g. "X: 100, Y: 64, Z: -200")
+
+# World name translations
+# Map world names to custom display names
+# If a world is not listed here, it will use the original name
+world-names:
+  zy2: "资源世界"
+  sc: "生存世界"
+  world: "主世界"
+  world_nether: "下界"
+  world_the_end: "末地"
+  # Add more mappings as needed
+
+# Structure type translations
+# Map raw structure types to custom display names
+# If a type is not listed here, it will use the formatted English name
+structure-types:
+  SURFACE: "地表"
+  UNDERGROUND_SHALLOW: "浅层地下"
+  UNDERGROUND_DEEP: "深层地下"
+  SKY: "天空"
+  LIQUID_SURFACE: "水面"
+  SEA_FLOOR: "海底"
+  # Add more mappings as needed
+
+map:
+  # The display name of the map item
+  # Color codes: use & for color codes (e.g. &6 for gold, &a for green)
+  display-name: "&6一张古老的地图"
+
+  # The lore (description) of the map item
+  # Each line is a separate entry in the list
+  lore:
+    - "&7位于&f%type%"
+    - "&7在&f%world%"
+
+# Messages sent to players
+messages:
+  # Message sent to the player who receives the map
+  received: "&a你找到了一张古老的地图!"
+#  pointing-to: "&7Pointing to: &f%coords%"
+#  type: "&7Type: &f%type%"
+#  scale: "&7Scale: &f%scale%"
+
+  # Message sent to the command sender (if different from receiver)
+  sent-to: "&aExplorer map sent to %player%!"

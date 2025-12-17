@@ -1,0 +1,16 @@
+name: StructuresFinder
+version: '1.0.0'
+main: com.yeahnangua.structuresfinder.StructuresFinder
+api-version: '1.21'
+description: Find BetterStructures buildings with explorer maps
+
+commands:
+  findstructure:
+    description: Get an explorer map pointing to a random structure
+    usage: /findstructure <world> <player> [type] [scale]
+    permission: structuresfinder.use
+
+permissions:
+  structuresfinder.use:
+    description: Allows using the findstructure command
+    default: op
