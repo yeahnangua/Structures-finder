@@ -57,4 +57,35 @@ public final class StructuresFinder extends JavaPlugin {
     public void reloadPluginConfig() {
         reloadConfig();
     }
+
+    /**
+     * Checks if explorer map style rendering is enabled.
+     */
+    public boolean isExplorerMapStyleEnabled() {
+        return getConfig().getBoolean("explorer-map-style.enabled", true);
+    }
+
+    /**
+     * Gets the sampling resolution for terrain detection.
+     * Higher value = faster but less precise.
+     */
+    public int getSampleResolution() {
+        int resolution = getConfig().getInt("explorer-map-style.sample-resolution", 4);
+        // Clamp to reasonable values (1-16)
+        return Math.max(1, Math.min(16, resolution));
+    }
+
+    /**
+     * Gets the list of water biome keywords for fuzzy matching.
+     */
+    public List<String> getWaterBiomeKeywords() {
+        return getConfig().getStringList("explorer-map-style.water-biomes.keywords");
+    }
+
+    /**
+     * Gets the list of exact water biome names for precise matching.
+     */
+    public List<String> getWaterBiomeExact() {
+        return getConfig().getStringList("explorer-map-style.water-biomes.exact");
+    }
 }

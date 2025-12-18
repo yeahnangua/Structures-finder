@@ -47,6 +47,7 @@ map:
   lore:
     - "&7位于&f%type%"
     - "&7在&f%world%"
+    - "测试模式 %x% %y% %z%"
 
 # Messages sent to players
 messages:
@@ -58,3 +59,38 @@ messages:
 
   # Message sent to the command sender (if different from receiver)
   sent-to: "&aExplorer map sent to %player%!"
+
+# Explorer map style settings
+# Controls the sepia stripe effect for water biomes (like vanilla explorer maps)
+explorer-map-style:
+  # Enable the explorer map visual style (water areas shown with brown stripes)
+  enabled: true
+
+  # Sampling resolution for terrain detection
+  # Higher value = faster but less precise (recommended: 4-8)
+  # 1 = check every pixel (128x128 = 16384 checks, very slow!)
+  # 4 = check every 4 pixels (32x32 = 1024 checks, fast)
+  # 8 = check every 8 pixels (16x16 = 256 checks, very fast)
+  sample-resolution: 4
+
+  # Water biome detection settings
+  water-biomes:
+    # Keywords for fuzzy matching (case-insensitive)
+    # If a biome name contains any of these keywords, it's considered water
+    keywords:
+      - ocean
+      - river
+      - swamp
+      - beach
+      - frozen_river
+      - frozen_ocean
+
+    # Exact biome names for precise matching (case-sensitive)
+    # Use this for custom biomes from Terra or other world generators
+    # Format: "namespace:path" (e.g., "terra:overworld/overworld/ocean")
+    exact:
+      # Terra examples (uncomment and modify as needed):
+      # - "terra:overworld/overworld/ocean"
+      # - "terra:overworld/overworld/deep_ocean"
+      # - "terra:overworld/overworld/river"
+      # - "terra:overworld/overworld/swamp"
