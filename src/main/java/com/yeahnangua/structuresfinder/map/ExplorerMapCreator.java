@@ -113,12 +113,8 @@ public class ExplorerMapCreator {
         StructuresFinder plugin = StructuresFinder.getInstance();
 
         long configStart = System.currentTimeMillis();
-        List<String> waterKeywords = plugin.getWaterBiomeKeywords();
-        List<String> waterExact = plugin.getWaterBiomeExact();
         int sampleRes = plugin.getSampleResolution();
         DebugLogger.logTiming("Reading config", configStart);
-        DebugLogger.log("waterKeywords: " + waterKeywords);
-        DebugLogger.log("waterExact: " + waterExact);
         DebugLogger.log("sampleRes: " + sampleRes);
 
         byte[] terrain = new byte[128 * 128];
@@ -132,14 +128,11 @@ public class ExplorerMapCreator {
         long fillTime = 0;
 
         // Use fixed Y level for biome detection (sea level = 63)
-        // This avoids the expensive getHighestBlockYAt call
-        // Biomes are typically consistent across Y levels at the surface
         final int SAMPLE_Y = 63;
         DebugLogger.log("Using fixed Y level for biome sampling: " + SAMPLE_Y);
-        DebugLogger.log("Color values - WATER_LIGHT: " + WATER_LIGHT + ", WATER_DARK: " + WATER_DARK + ", LAND_COLOR: " + LAND_COLOR);
 
-        int waterCount = 0;
-        int landCount = 0;
+        // Biome type counters
+        int[] typeCounts = new int[BiomeType.values().length];
 
         long loopStart = System.currentTimeMillis();
 
@@ -152,31 +145,21 @@ public class ExplorerMapCreator {
                 int worldX = centerX + (sampleX - 64) * scale;
                 int worldZ = centerZ + (sampleZ - 64) * scale;
 
-                // Check biome at fixed Y level (skip expensive getHighestBlockYAt)
+                // Get biome type at fixed Y level
                 long bStart = System.currentTimeMillis();
-                boolean isWater = isWaterBiome(world, worldX, SAMPLE_Y, worldZ, waterKeywords, waterExact);
+                BiomeType biomeType = getBiomeType(world, worldX, SAMPLE_Y, worldZ);
                 biomeTime += System.currentTimeMillis() - bStart;
 
-                if (isWater) {
-                    waterCount++;
-                } else {
-                    landCount++;
-                }
+                typeCounts[biomeType.ordinal()]++;
 
-                // Fill sample block area
+                // Fill sample block area with appropriate color
                 long fStart = System.currentTimeMillis();
                 for (int dx = 0; dx < sampleRes && (sampleX + dx) < 128; dx++) {
                     for (int dz = 0; dz < sampleRes && (sampleZ + dz) < 128; dz++) {
                         int pixelX = sampleX + dx;
                         int pixelZ = sampleZ + dz;
                         int index = pixelZ * 128 + pixelX;
-
-                        if (isWater) {
-                            boolean isStripe = ((pixelX + pixelZ) % 4) < 2;
-                            terrain[index] = isStripe ? WATER_LIGHT : WATER_DARK;
-                        } else {
-                            terrain[index] = LAND_COLOR;
-                        }
+                        terrain[index] = getColorForBiome(biomeType, pixelX, pixelZ);
                     }
                 }
                 fillTime += System.currentTimeMillis() - fStart;
@@ -185,7 +168,11 @@ public class ExplorerMapCreator {
 
         DebugLogger.logTiming("Main loop total", loopStart);
         DebugLogger.log("Actual sample count: " + sampleCount);
-        DebugLogger.log("  - Water samples: " + waterCount + ", Land samples: " + landCount);
+        DebugLogger.log("  - WATER: " + typeCounts[BiomeType.WATER.ordinal()] +
+                       ", FOREST: " + typeCounts[BiomeType.FOREST.ordinal()] +
+                       ", PLAINS: " + typeCounts[BiomeType.PLAINS.ordinal()] +
+                       ", SNOWY: " + typeCounts[BiomeType.SNOWY.ordinal()] +
+                       ", OTHER: " + typeCounts[BiomeType.OTHER.ordinal()]);
         DebugLogger.log("  - getBiome total: " + biomeTime + " ms (avg: " + (biomeTime / Math.max(1, sampleCount)) + " ms/sample)");
         DebugLogger.log("  - fill pixels total: " + fillTime + " ms");
         DebugLogger.logTiming("--- computeTerrainData END ---", methodStart);
@@ -349,10 +336,9 @@ public class ExplorerMapCreator {
     }
 
     /**
-     * Checks if a biome is a water biome.
+     * Determines the biome type for coloring purposes.
      */
-    private static boolean isWaterBiome(World world, int x, int y, int z,
-                                        List<String> keywords, List<String> exactNames) {
+    private static BiomeType getBiomeType(World world, int x, int y, int z) {
         Biome biome = world.getBiome(x, y, z);
         String biomeName = biome.getKey().toString().toLowerCase();
 
@@ -362,35 +348,79 @@ public class ExplorerMapCreator {
             debugBiomeCount++;
         }
 
-        for (String exact : exactNames) {
-            if (biomeName.equals(exact.toLowerCase())) {
-                return true;
-            }
+        // Check for water biomes
+        if (containsAny(biomeName, "ocean", "river", "swamp", "beach")) {
+            return BiomeType.WATER;
         }
 
+        // Check for snowy biomes (check before forest because snowy_taiga contains both)
+        if (containsAny(biomeName, "snowy", "frozen", "ice", "cold")) {
+            return BiomeType.SNOWY;
+        }
+
+        // Check for forest biomes
+        if (containsAny(biomeName, "forest", "taiga", "jungle", "grove", "cherry")) {
+            return BiomeType.FOREST;
+        }
+
+        // Check for plains/desert biomes
+        if (containsAny(biomeName, "plains", "savanna", "desert", "badlands", "meadow")) {
+            return BiomeType.PLAINS;
+        }
+
+        // Default for other biomes (mountains, caves, etc.)
+        return BiomeType.OTHER;
+    }
+
+    /**
+     * Helper method to check if a string contains any of the given keywords.
+     */
+    private static boolean containsAny(String str, String... keywords) {
         for (String keyword : keywords) {
-            if (biomeName.contains(keyword.toLowerCase())) {
-                if (debugWaterFound < 5) {
-                    DebugLogger.log("  [DEBUG] Found water biome! " + biomeName + " contains '" + keyword + "'");
-                    debugWaterFound++;
-                }
+            if (str.contains(keyword)) {
                 return true;
             }
         }
-
         return false;
+    }
+
+    /**
+     * Gets the color for a biome type at a specific pixel position.
+     * Water biomes use striped pattern, others use solid color.
+     */
+    private static byte getColorForBiome(BiomeType type, int pixelX, int pixelZ) {
+        return switch (type) {
+            case WATER -> {
+                boolean isStripe = ((pixelX + pixelZ) % 4) < 2;
+                yield isStripe ? WATER_LIGHT : WATER_DARK;
+            }
+            case FOREST -> FOREST_COLOR;
+            case PLAINS -> PLAINS_COLOR;
+            case SNOWY -> SNOWY_COLOR;
+            case OTHER -> DEFAULT_COLOR;
+        };
     }
 
     // Debug counters (reset each map creation)
     private static int debugBiomeCount = 0;
     private static int debugWaterFound = 0;
 
-    // Explorer map colors - using VERY obvious colors for testing
-    // MapPalette color indexes (not RGB!)
+    // Biome type enumeration for multi-color support
+    private enum BiomeType {
+        WATER, FOREST, PLAINS, SNOWY, OTHER
+    }
+
+    // Explorer map colors - MapPalette color indexes (not RGB!)
     // See: https://minecraft.wiki/w/Map_item_format#Color_table
     private static final byte WATER_LIGHT = 48;   // Light blue (water color)
     private static final byte WATER_DARK = 49;    // Dark blue (water color dark)
-    private static final byte LAND_COLOR = 34;    // Bright green (grass color)
+    private static final byte FOREST_COLOR = 34;  // Green (grass color)
+    private static final byte PLAINS_COLOR = 24;  // Yellow/sand color
+    private static final byte SNOWY_COLOR = 8;    // White (snow color)
+    private static final byte DEFAULT_COLOR = 2;  // Light beige/cream
+
+    // Keep old constant for compatibility
+    private static final byte LAND_COLOR = DEFAULT_COLOR;
 
     public static String replacePlaceholders(String text, StructureData structure, MapView.Scale scale) {
         if (text == null) return "";
