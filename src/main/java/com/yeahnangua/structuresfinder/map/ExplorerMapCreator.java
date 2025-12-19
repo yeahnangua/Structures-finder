@@ -413,11 +413,11 @@ public class ExplorerMapCreator {
     // Explorer map colors - MapPalette color indexes (not RGB!)
     // See: https://minecraft.wiki/w/Map_item_format#Color_table
     private static final byte WATER_LIGHT = 48;   // Light blue (water color)
-    private static final byte WATER_DARK = 49;    // Dark blue (water color dark)
-    private static final byte FOREST_COLOR = 34;  // Green (grass color)
-    private static final byte PLAINS_COLOR = 24;  // Yellow/sand color
-    private static final byte SNOWY_COLOR = 8;    // White (snow color)
-    private static final byte DEFAULT_COLOR = 2;  // Light beige/cream
+    private static final byte WATER_DARK = 50;    // Dark blue (water color dark)
+    private static final byte FOREST_COLOR = 28;  // Green (grass color)
+    private static final byte PLAINS_COLOR = 4;  // Yellow/sand color
+    private static final byte SNOWY_COLOR = 34;    // White (snow color)
+    private static final byte DEFAULT_COLOR = 0;  // Light beige/cream
 
     // Keep old constant for compatibility
     private static final byte LAND_COLOR = DEFAULT_COLOR;
