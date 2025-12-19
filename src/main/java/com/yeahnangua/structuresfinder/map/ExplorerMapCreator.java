@@ -20,6 +20,8 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 /**
  * Creates explorer maps that point to structure locations.
@@ -100,60 +102,45 @@ public class ExplorerMapCreator {
     }
 
     /**
-     * Computes terrain data asynchronously.
+     * Computes terrain data using parallel processing for better performance.
      */
     private static byte[] computeTerrainData(World world, int centerX, int centerZ, int scale) {
         long methodStart = System.currentTimeMillis();
-        DebugLogger.log("--- computeTerrainData START ---");
-
-        // Reset debug counters
-        debugBiomeCount = 0;
-        debugWaterFound = 0;
+        DebugLogger.log("--- computeTerrainData START (PARALLEL) ---");
 
         StructuresFinder plugin = StructuresFinder.getInstance();
-
-        long configStart = System.currentTimeMillis();
         int sampleRes = plugin.getSampleResolution();
-        DebugLogger.logTiming("Reading config", configStart);
         DebugLogger.log("sampleRes: " + sampleRes);
 
         byte[] terrain = new byte[128 * 128];
-
-        // Calculate expected iterations
-        int expectedSamples = (128 / sampleRes) * (128 / sampleRes);
-        DebugLogger.log("Expected sample count: " + expectedSamples + " (128/" + sampleRes + " = " + (128/sampleRes) + " per axis)");
-
-        int sampleCount = 0;
-        long biomeTime = 0;
-        long fillTime = 0;
-
-        // Use fixed Y level for biome detection (sea level = 63)
         final int SAMPLE_Y = 63;
-        DebugLogger.log("Using fixed Y level for biome sampling: " + SAMPLE_Y);
 
-        // Biome type counters
-        int[] typeCounts = new int[BiomeType.values().length];
+        // Number of rows to process (128 / sampleRes)
+        int rowCount = 128 / sampleRes;
+        DebugLogger.log("Parallel processing " + rowCount + " rows with " + rowCount + " samples each = " + (rowCount * rowCount) + " total samples");
+
+        // Atomic counters for thread-safe statistics
+        AtomicInteger[] typeCounts = new AtomicInteger[BiomeType.values().length];
+        for (int i = 0; i < typeCounts.length; i++) {
+            typeCounts[i] = new AtomicInteger(0);
+        }
 
         long loopStart = System.currentTimeMillis();
 
-        // Iterate through sampled pixels
-        for (int sampleX = 0; sampleX < 128; sampleX += sampleRes) {
-            for (int sampleZ = 0; sampleZ < 128; sampleZ += sampleRes) {
-                sampleCount++;
+        // Process rows in parallel
+        IntStream.range(0, rowCount).parallel().forEach(rowIndex -> {
+            int sampleX = rowIndex * sampleRes;
 
+            for (int sampleZ = 0; sampleZ < 128; sampleZ += sampleRes) {
                 // Convert pixel to world coordinates
                 int worldX = centerX + (sampleX - 64) * scale;
                 int worldZ = centerZ + (sampleZ - 64) * scale;
 
                 // Get biome type at fixed Y level
-                long bStart = System.currentTimeMillis();
                 BiomeType biomeType = getBiomeType(world, worldX, SAMPLE_Y, worldZ);
-                biomeTime += System.currentTimeMillis() - bStart;
-
-                typeCounts[biomeType.ordinal()]++;
+                typeCounts[biomeType.ordinal()].incrementAndGet();
 
                 // Fill sample block area with appropriate color
-                long fStart = System.currentTimeMillis();
                 for (int dx = 0; dx < sampleRes && (sampleX + dx) < 128; dx++) {
                     for (int dz = 0; dz < sampleRes && (sampleZ + dz) < 128; dz++) {
                         int pixelX = sampleX + dx;
@@ -162,19 +149,20 @@ public class ExplorerMapCreator {
                         terrain[index] = getColorForBiome(biomeType, pixelX, pixelZ);
                     }
                 }
-                fillTime += System.currentTimeMillis() - fStart;
             }
-        }
+        });
 
-        DebugLogger.logTiming("Main loop total", loopStart);
-        DebugLogger.log("Actual sample count: " + sampleCount);
-        DebugLogger.log("  - WATER: " + typeCounts[BiomeType.WATER.ordinal()] +
-                       ", FOREST: " + typeCounts[BiomeType.FOREST.ordinal()] +
-                       ", PLAINS: " + typeCounts[BiomeType.PLAINS.ordinal()] +
-                       ", SNOWY: " + typeCounts[BiomeType.SNOWY.ordinal()] +
-                       ", OTHER: " + typeCounts[BiomeType.OTHER.ordinal()]);
-        DebugLogger.log("  - getBiome total: " + biomeTime + " ms (avg: " + (biomeTime / Math.max(1, sampleCount)) + " ms/sample)");
-        DebugLogger.log("  - fill pixels total: " + fillTime + " ms");
+        long loopTime = System.currentTimeMillis() - loopStart;
+        int totalSamples = rowCount * rowCount;
+
+        DebugLogger.logTiming("Parallel loop total", loopStart);
+        DebugLogger.log("Total samples: " + totalSamples);
+        DebugLogger.log("  - WATER: " + typeCounts[BiomeType.WATER.ordinal()].get() +
+                       ", FOREST: " + typeCounts[BiomeType.FOREST.ordinal()].get() +
+                       ", PLAINS: " + typeCounts[BiomeType.PLAINS.ordinal()].get() +
+                       ", SNOWY: " + typeCounts[BiomeType.SNOWY.ordinal()].get() +
+                       ", OTHER: " + typeCounts[BiomeType.OTHER.ordinal()].get());
+        DebugLogger.log("  - Avg time per sample: " + (loopTime / Math.max(1, totalSamples)) + " ms");
         DebugLogger.logTiming("--- computeTerrainData END ---", methodStart);
 
         return terrain;
@@ -342,12 +330,6 @@ public class ExplorerMapCreator {
         Biome biome = world.getBiome(x, y, z);
         String biomeName = biome.getKey().toString().toLowerCase();
 
-        // Log first few biome checks for debugging
-        if (debugBiomeCount < 10) {
-            DebugLogger.log("  [DEBUG] Biome at (" + x + "," + y + "," + z + "): " + biomeName);
-            debugBiomeCount++;
-        }
-
         // Check for water biomes
         if (containsAny(biomeName, "ocean", "river", "swamp", "beach")) {
             return BiomeType.WATER;
@@ -400,10 +382,6 @@ public class ExplorerMapCreator {
             case OTHER -> DEFAULT_COLOR;
         };
     }
-
-    // Debug counters (reset each map creation)
-    private static int debugBiomeCount = 0;
-    private static int debugWaterFound = 0;
 
     // Biome type enumeration for multi-color support
     private enum BiomeType {
