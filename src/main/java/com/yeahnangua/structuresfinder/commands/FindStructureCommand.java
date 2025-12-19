@@ -18,8 +18,9 @@ import java.util.Set;
 
 /**
  * Command handler for /findstructure command.
- * Usage: /findstructure <world> <player> [type] [scale]
+ * Usage: /findstructure <world> <player> [type] [scale] [--notclear]
  * Scale: 0=closest, 1=close, 2=normal, 3=far, 4=farthest
+ * --notclear: Only select structures that haven't been cleared
  */
 public class FindStructureCommand implements CommandExecutor, TabCompleter {
 
@@ -33,11 +34,24 @@ public class FindStructureCommand implements CommandExecutor, TabCompleter {
 
         // Check arguments - need at least world and player
         if (args.length < 2) {
-            sender.sendMessage("§cUsage: /findstructure <world> <player> [type] [scale]");
+            sender.sendMessage("§cUsage: /findstructure <world> <player> [type] [scale] [--notclear]");
             sender.sendMessage("§7Scale: 0=closest, 1=close, 2=normal, 3=far, 4=farthest");
+            sender.sendMessage("§7--notclear: Only select structures that haven't been cleared");
             sender.sendMessage("§7Available worlds: §f" + String.join(", ", StructureDataLoader.getAvailableWorlds()));
             return true;
         }
+
+        // Check for --notclear flag anywhere in args
+        boolean notCleared = false;
+        List<String> filteredArgs = new ArrayList<>();
+        for (String arg : args) {
+            if (arg.equalsIgnoreCase("--notclear") || arg.equalsIgnoreCase("-nc")) {
+                notCleared = true;
+            } else {
+                filteredArgs.add(arg);
+            }
+        }
+        args = filteredArgs.toArray(new String[0]);
 
         String worldName = args[0];
         String playerName = args[1];
@@ -80,17 +94,19 @@ public class FindStructureCommand implements CommandExecutor, TabCompleter {
         // Get random structure
         StructureData structure;
         if (structureType != null) {
-            structure = StructureDataLoader.getRandomStructureByType(worldName, structureType);
+            structure = StructureDataLoader.getRandomStructureByType(worldName, structureType, notCleared);
             if (structure == null) {
-                sender.sendMessage("§cNo structures of type '" + structureType + "' found in world: " + worldName);
+                String filterMsg = notCleared ? " (not cleared)" : "";
+                sender.sendMessage("§cNo structures of type '" + structureType + "'" + filterMsg + " found in world: " + worldName);
                 Set<String> types = StructureDataLoader.getAvailableTypes(worldName);
                 sender.sendMessage("§7Available types: §f" + String.join(", ", types));
                 return true;
             }
         } else {
-            structure = StructureDataLoader.getRandomStructure(worldName);
+            structure = StructureDataLoader.getRandomStructure(worldName, notCleared);
             if (structure == null) {
-                sender.sendMessage("§cNo structures found in world: " + worldName);
+                String filterMsg = notCleared ? " (not cleared)" : "";
+                sender.sendMessage("§cNo structures" + filterMsg + " found in world: " + worldName);
                 return true;
             }
         }
@@ -147,6 +163,15 @@ public class FindStructureCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
         List<String> completions = new ArrayList<>();
 
+        // Check if --notclear is already used
+        boolean hasNotClear = false;
+        for (String arg : args) {
+            if (arg.equalsIgnoreCase("--notclear") || arg.equalsIgnoreCase("-nc")) {
+                hasNotClear = true;
+                break;
+            }
+        }
+
         if (args.length == 1) {
             // Complete world names
             String partial = args[0].toLowerCase();
@@ -179,6 +204,10 @@ public class FindStructureCommand implements CommandExecutor, TabCompleter {
                     completions.add(String.valueOf(i));
                 }
             }
+            // Suggest --notclear
+            if (!hasNotClear && "--notclear".startsWith(partial)) {
+                completions.add("--notclear");
+            }
         } else if (args.length == 4) {
             // Complete scale
             String partial = args[3].toLowerCase();
@@ -186,6 +215,16 @@ public class FindStructureCommand implements CommandExecutor, TabCompleter {
                 if (String.valueOf(i).startsWith(partial)) {
                     completions.add(String.valueOf(i));
                 }
+            }
+            // Suggest --notclear
+            if (!hasNotClear && "--notclear".startsWith(partial)) {
+                completions.add("--notclear");
+            }
+        } else if (args.length >= 5) {
+            // Suggest --notclear if not already used
+            String partial = args[args.length - 1].toLowerCase();
+            if (!hasNotClear && "--notclear".startsWith(partial)) {
+                completions.add("--notclear");
             }
         }
 

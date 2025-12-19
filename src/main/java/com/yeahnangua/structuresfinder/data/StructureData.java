@@ -9,7 +9,8 @@ public record StructureData(
         int y,
         int z,
         String schematicName,
-        String structureType
+        String structureType,
+        boolean cleared
 ) {
     /**
      * Returns formatted coordinates as "x, y, z" string.

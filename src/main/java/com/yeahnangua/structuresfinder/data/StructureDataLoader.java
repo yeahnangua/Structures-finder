@@ -62,8 +62,9 @@ public class StructureDataLoader {
             int z = locationSection.getInt("z");
             String schematic = locationSection.getString("schematic", "unknown");
             String type = locationSection.getString("type", "UNDEFINED");
+            boolean cleared = locationSection.getBoolean("cleared", false);
 
-            structures.add(new StructureData(worldName, x, y, z, schematic, type));
+            structures.add(new StructureData(worldName, x, y, z, schematic, type, cleared));
         }
 
         return structures;
@@ -89,7 +90,17 @@ public class StructureDataLoader {
      * Gets a random structure from a world.
      */
     public static StructureData getRandomStructure(String worldName) {
+        return getRandomStructure(worldName, false);
+    }
+
+    /**
+     * Gets a random structure from a world, optionally filtering out cleared structures.
+     */
+    public static StructureData getRandomStructure(String worldName, boolean notCleared) {
         List<StructureData> structures = loadStructures(worldName);
+        if (notCleared) {
+            structures = structures.stream().filter(s -> !s.cleared()).toList();
+        }
         if (structures.isEmpty()) {
             return null;
         }
@@ -100,7 +111,17 @@ public class StructureDataLoader {
      * Gets a random structure of a specific type from a world.
      */
     public static StructureData getRandomStructureByType(String worldName, String structureType) {
+        return getRandomStructureByType(worldName, structureType, false);
+    }
+
+    /**
+     * Gets a random structure of a specific type from a world, optionally filtering out cleared structures.
+     */
+    public static StructureData getRandomStructureByType(String worldName, String structureType, boolean notCleared) {
         List<StructureData> structures = loadStructuresByType(worldName, structureType);
+        if (notCleared) {
+            structures = structures.stream().filter(s -> !s.cleared()).toList();
+        }
         if (structures.isEmpty()) {
             return null;
         }
