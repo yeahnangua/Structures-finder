@@ -1,6 +1,7 @@
 package com.yeahnangua.structuresfinder.map;
 
 import com.yeahnangua.structuresfinder.StructuresFinder;
+import com.yeahnangua.structuresfinder.cache.CachedMapData;
 import com.yeahnangua.structuresfinder.data.StructureData;
 import com.yeahnangua.structuresfinder.util.DebugLogger;
 import org.bukkit.Bukkit;
@@ -102,9 +103,32 @@ public class ExplorerMapCreator {
     }
 
     /**
-     * Computes terrain data using parallel processing for better performance.
+     * Creates and gives a map from cached data. Used by the cache system.
+     * Must be called from the main thread.
      */
-    private static byte[] computeTerrainData(World world, int centerX, int centerZ, int scale) {
+    public static void createAndGiveMapFromCache(Player player, CachedMapData cachedData) {
+        DebugLogger.log("========== 从缓存创建地图 ==========");
+        DebugLogger.log("玩家: " + player.getName());
+        DebugLogger.log("结构: " + cachedData.structure().schematicName() + " 坐标(" + cachedData.structure().x() + ", " + cachedData.structure().z() + ")");
+        DebugLogger.log("地图中心: (" + cachedData.centerX() + ", " + cachedData.centerZ() + ")");
+
+        World world = Bukkit.getWorld(cachedData.structure().worldName());
+        if (world == null) {
+            DebugLogger.log("错误: 世界未找到: " + cachedData.structure().worldName());
+            return;
+        }
+
+        long startTime = System.currentTimeMillis();
+        createMapWithTerrain(player, cachedData.structure(), MapView.Scale.FAR,
+                world, cachedData.centerX(), cachedData.centerZ(), cachedData.terrainData());
+        DebugLogger.log("从缓存创建地图完成, 耗时 " + (System.currentTimeMillis() - startTime) + "ms");
+    }
+
+    /**
+     * Computes terrain data using parallel processing for better performance.
+     * Public for cache system to use.
+     */
+    public static byte[] computeTerrainData(World world, int centerX, int centerZ, int scale) {
         long methodStart = System.currentTimeMillis();
         DebugLogger.log("--- computeTerrainData START (PARALLEL) ---");
 

@@ -1,5 +1,6 @@
 package com.yeahnangua.structuresfinder;
 
+import com.yeahnangua.structuresfinder.cache.ExplorerMapCache;
 import com.yeahnangua.structuresfinder.commands.FindStructureCommand;
 import org.bukkit.ChatColor;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -9,6 +10,7 @@ import java.util.List;
 public final class StructuresFinder extends JavaPlugin {
 
     private static StructuresFinder instance;
+    private ExplorerMapCache mapCache;
 
     @Override
     public void onEnable() {
@@ -19,10 +21,20 @@ public final class StructuresFinder extends JavaPlugin {
 
         getLogger().info("StructuresFinder has been enabled!");
 
+        // Initialize cache system
+        mapCache = new ExplorerMapCache(this);
+        mapCache.loadFromDisk();
+
         // Register command
         FindStructureCommand command = new FindStructureCommand();
         getCommand("findstructure").setExecutor(command);
         getCommand("findstructure").setTabCompleter(command);
+
+        // Initialize missing caches after server is fully loaded
+        getServer().getScheduler().runTaskLater(this, () -> {
+            getLogger().info("Initializing explorer map cache...");
+            mapCache.initializeAll();
+        }, 40L); // 2 seconds delay
     }
 
     @Override
@@ -32,6 +44,10 @@ public final class StructuresFinder extends JavaPlugin {
 
     public static StructuresFinder getInstance() {
         return instance;
+    }
+
+    public ExplorerMapCache getMapCache() {
+        return mapCache;
     }
 
     /**

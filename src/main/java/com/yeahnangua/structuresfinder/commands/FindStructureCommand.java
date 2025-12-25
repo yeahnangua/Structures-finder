@@ -1,6 +1,7 @@
 package com.yeahnangua.structuresfinder.commands;
 
 import com.yeahnangua.structuresfinder.StructuresFinder;
+import com.yeahnangua.structuresfinder.cache.CachedMapData;
 import com.yeahnangua.structuresfinder.data.StructureData;
 import com.yeahnangua.structuresfinder.data.StructureDataLoader;
 import com.yeahnangua.structuresfinder.map.ExplorerMapCreator;
@@ -93,6 +94,44 @@ public class FindStructureCommand implements CommandExecutor, TabCompleter {
 
         // Get random structure
         StructureData structure;
+        StructuresFinder plugin = StructuresFinder.getInstance();
+
+        plugin.getLogger().info("[命令] /findstructure 执行: 世界=" + worldName + ", 玩家=" + targetPlayer.getName() + ", 类型=" + structureType + ", 缩放=" + scale);
+
+        // Try to use cache
+        CachedMapData cachedMap;
+        String cacheType;
+
+        if (structureType != null) {
+            // 指定了类型 - 获取指定类型的缓存
+            plugin.getLogger().info("[命令] 检查缓存: " + worldName + "_" + structureType);
+            cachedMap = plugin.getMapCache().get(worldName, structureType);
+            cacheType = structureType;
+        } else {
+            // 未指定类型 - 随机选择一个已缓存的类型
+            plugin.getLogger().info("[命令] 未指定类型, 随机选择缓存...");
+            cachedMap = plugin.getMapCache().getRandomCached(worldName);
+            cacheType = cachedMap != null ? cachedMap.structure().structureType() : null;
+        }
+
+        if (cachedMap != null) {
+            // Cache hit - give cached map immediately
+            plugin.getLogger().info("[命令] 缓存命中! 立即给予玩家地图...");
+            ExplorerMapCreator.createAndGiveMapFromCache(targetPlayer, cachedMap);
+
+            // Send messages
+            structure = cachedMap.structure();
+            sendSuccessMessages(sender, targetPlayer, structure, MapView.Scale.FAR);
+
+            // Regenerate cache in background for next player
+            plugin.getLogger().info("[命令] 触发后台重新生成...");
+            plugin.getMapCache().regenerateAsync(worldName, cacheType);
+            return true;
+        }
+
+        // Cache miss - fallback to original logic
+        plugin.getLogger().warning("[命令] 缓存未命中! 使用回退逻辑 (即时生成)...");
+
         if (structureType != null) {
             structure = StructureDataLoader.getRandomStructureByType(worldName, structureType, notCleared);
             if (structure == null) {
@@ -111,36 +150,38 @@ public class FindStructureCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        // Create and give the explorer map to target player
+        // Create and give the explorer map to target player (fallback / no type specified)
         boolean success = ExplorerMapCreator.createAndGiveMap(targetPlayer, structure, scale);
 
         if (success) {
-            StructuresFinder plugin = StructuresFinder.getInstance();
-
-            // Send messages to target player using config
-            String receivedMsg = plugin.getConfigString("messages.received");
-            String pointingMsg = plugin.getConfigString("messages.pointing-to");
-            String typeMsg = plugin.getConfigString("messages.type");
-            String scaleMsg = plugin.getConfigString("messages.scale");
-
-            targetPlayer.sendMessage(ExplorerMapCreator.replacePlaceholders(receivedMsg, structure, scale));
-            targetPlayer.sendMessage(ExplorerMapCreator.replacePlaceholders(pointingMsg, structure, scale));
-            targetPlayer.sendMessage(ExplorerMapCreator.replacePlaceholders(typeMsg, structure, scale));
-            targetPlayer.sendMessage(ExplorerMapCreator.replacePlaceholders(scaleMsg, structure, scale));
-
-            // Notify sender if different from target
-            if (sender != targetPlayer) {
-                String sentMsg = plugin.getConfigString("messages.sent-to");
-                sentMsg = sentMsg.replace("%player%", targetPlayer.getName());
-                sender.sendMessage(ExplorerMapCreator.replacePlaceholders(sentMsg, structure, scale));
-                sender.sendMessage(ExplorerMapCreator.replacePlaceholders(pointingMsg, structure, scale));
-                sender.sendMessage(ExplorerMapCreator.replacePlaceholders(typeMsg, structure, scale));
-            }
+            sendSuccessMessages(sender, targetPlayer, structure, scale);
         } else {
             sender.sendMessage("§cFailed to create explorer map. Is the world loaded?");
         }
 
         return true;
+    }
+
+    private void sendSuccessMessages(CommandSender sender, Player targetPlayer, StructureData structure, MapView.Scale scale) {
+        StructuresFinder plugin = StructuresFinder.getInstance();
+
+        String receivedMsg = plugin.getConfigString("messages.received");
+        String pointingMsg = plugin.getConfigString("messages.pointing-to");
+        String typeMsg = plugin.getConfigString("messages.type");
+        String scaleMsg = plugin.getConfigString("messages.scale");
+
+        targetPlayer.sendMessage(ExplorerMapCreator.replacePlaceholders(receivedMsg, structure, scale));
+        targetPlayer.sendMessage(ExplorerMapCreator.replacePlaceholders(pointingMsg, structure, scale));
+        targetPlayer.sendMessage(ExplorerMapCreator.replacePlaceholders(typeMsg, structure, scale));
+        targetPlayer.sendMessage(ExplorerMapCreator.replacePlaceholders(scaleMsg, structure, scale));
+
+        if (sender != targetPlayer) {
+            String sentMsg = plugin.getConfigString("messages.sent-to");
+            sentMsg = sentMsg.replace("%player%", targetPlayer.getName());
+            sender.sendMessage(ExplorerMapCreator.replacePlaceholders(sentMsg, structure, scale));
+            sender.sendMessage(ExplorerMapCreator.replacePlaceholders(pointingMsg, structure, scale));
+            sender.sendMessage(ExplorerMapCreator.replacePlaceholders(typeMsg, structure, scale));
+        }
     }
 
     private MapView.Scale parseScale(String input) {
